@@ -16,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.post("/api/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
