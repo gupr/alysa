@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="sv">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alysa – Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #0f172a 0%, #4f46e5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .pdf-page-container {
+            position: relative;
+            margin-bottom: 2rem;
+            display: inline-block;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            background: white;
+        }
+
+        .highlight-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .requirement-highlight {
+            position: absolute;
+            background: rgba(79, 70, 229, 0.2);
+            border: 2px solid #4f46e5;
+            border-radius: 4px;
+            mix-blend-mode: multiply;
+            animation: pulse-highlight 2s infinite;
+        }
+
+        @keyframes pulse-highlight {
+            0% {
+                box-shadow: 0 0 0 0px rgba(79, 70, 229, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0px rgba(79, 70, 229, 0);
+            }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body class="bg-[#fcfcfd] text-slate-900 selection:bg-indigo-100">
+
+    <header
+        class="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-50 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+            <img src="./alysa-logo.png" alt="Alysa Logo" class="h-8 w-auto" />
+        </div>
+        <div class="flex items-center gap-6">
+            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-widest hidden sm:block">Analysläge:
+                Aktivt</span>
+            <div
+                class="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold shadow-sm">
+                G</div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-10">
+        <div class="mb-12 text-center max-w-2xl mx-auto" id="heroHeader">
+            <h1 class="text-4xl font-extrabold tracking-tight mb-2 leading-tight">
+                Ditt projekt
+            </h1>
+            <div id="projectTitle" class="text-slate-500 font-medium text-lg mb-6 truncate px-4 italic">Välj ett
+                dokument för att starta</div>
+
+            <div
+                class="mt-2 p-1 bg-slate-100 rounded-2xl inline-flex items-center gap-2 border border-slate-200 shadow-inner">
+                <input type="file" id="fileInput" accept="application/pdf" class="hidden">
+                <label for="fileInput"
+                    class="px-8 py-3 rounded-xl bg-white shadow-sm border border-slate-200 text-sm font-bold cursor-pointer hover:bg-slate-50 transition-all active:scale-95">
+                    Ladda upp PDF
+                </label>
+                <div id="loadingStatus"
+                    class="hidden px-4 text-xs font-bold text-indigo-600 animate-pulse uppercase tracking-widest">AI
+                    analyserar...</div>
+            </div>
+        </div>
+
+        <div id="analysisView" class="hidden grid lg:grid-cols-12 gap-10 opacity-0 transition-opacity duration-500">
+
+            <div class="lg:col-span-7 space-y-4">
+                <div class="flex items-center justify-between px-2">
+                    <span
+                        class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 font-semibold">Originaldokument</span>
+                </div>
+                <div id="pdfContainer"
+                    class="h-[750px] overflow-y-auto bg-slate-200/20 rounded-[2.5rem] border border-slate-200/60 p-8 flex flex-col items-center custom-scrollbar shadow-inner">
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 flex flex-col h-[750px]">
+                <div class="flex items-center justify-between mb-4 px-2">
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Krav</span>
+                        <span id="reqBadge"
+                            class="bg-slate-900 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">0</span>
+                    </div>
+
+                    <button id="exportBtn"
+                        class="hidden text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition-colors group">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            class="h-3.5 w-3.5 transition-transform group-hover:translate-y-0.5" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        EXPORTERA TILL EXCEL
+                    </button>
+                </div>
+
+                <div id="requirementsList" class="flex-grow overflow-y-auto space-y-4 pr-4 custom-scrollbar">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const fileInput = document.getElementById('fileInput');
+        const pdfContainer = document.getElementById('pdfContainer');
+        const requirementsList = document.getElementById('requirementsList');
+        const loadingStatus = document.getElementById('loadingStatus');
+        const analysisView = document.getElementById('analysisView');
+        const exportBtn = document.getElementById('exportBtn');
+        const projectTitle = document.getElementById('projectTitle');
+
+        let currentPdf = null;
+        let pdfScale = 1.3;
+        let lastExtractedData = [];
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            loadingStatus.classList.remove('hidden');
+            // Uppdaterar filnamnet här - rakt på sak utan fancy styling
+            projectTitle.textContent = file.name;
+            projectTitle.classList.remove('italic');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/analyze', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error();
+
+                const data = await response.json();
+                lastExtractedData = data.requirements;
+
+                loadingStatus.classList.add('hidden');
+                analysisView.classList.replace('hidden', 'grid');
+                setTimeout(() => analysisView.classList.add('opacity-100'), 50);
+
+                document.getElementById('reqBadge').textContent = data.requirement_count;
+                if (data.requirement_count > 0) exportBtn.classList.remove('hidden');
+
+                await renderPdf(file);
+                renderRequirements(data.requirements);
+            } catch (err) {
+                alert("Kunde inte nå backenden. Se till att du kör via http://localhost:8000");
+                loadingStatus.classList.add('hidden');
+            }
+        });
+
+        async function renderPdf(file) {
+            pdfContainer.innerHTML = '';
+            const arrayBuffer = await file.arrayBuffer();
+            currentPdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            for (let i = 1; i <= currentPdf.numPages; i++) {
+                const page = await currentPdf.getPage(i);
+                const viewport = page.getViewport({ scale: pdfScale });
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'pdf-page-container';
+                wrapper.id = `page-container-${i}`;
+
+                const canvas = document.createElement('canvas');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const highlightLayer = document.createElement('div');
+                highlightLayer.className = 'highlight-layer';
+                highlightLayer.style.width = viewport.width + 'px';
+                highlightLayer.style.height = viewport.height + 'px';
+
+                wrapper.appendChild(canvas);
+                wrapper.appendChild(highlightLayer);
+                pdfContainer.appendChild(wrapper);
+
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            }
+        }
+
+        function renderRequirements(reqs) {
+            requirementsList.innerHTML = '';
+            reqs.forEach(req => {
+                const card = document.createElement('div');
+                const isSkall = req.classification === 'SKALL';
+
+                card.className = `group p-6 rounded-[2rem] border transition-all cursor-pointer bg-white hover:shadow-xl hover:-translate-y-1 ${isSkall ? 'border-red-100 hover:border-red-200' : 'border-slate-100 hover:border-indigo-200'}`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-[10px] font-extrabold tracking-widest px-2.5 py-1 rounded-lg ${isSkall ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-500'}">
+                            ${req.classification}
+                        </span>
+                        <span class="text-[10px] font-bold text-slate-300 tracking-tighter uppercase">Sida ${req.page}</span>
+                    </div>
+                    <p class="text-sm text-slate-600 leading-relaxed font-medium group-hover:text-slate-900 transition-colors">${req.text}</p>
+                `;
+
+                card.onclick = () => scrollToAndHighlight(req);
+                requirementsList.appendChild(card);
+            });
+        }
+
+        async function scrollToAndHighlight(req) {
+            const container = document.getElementById(`page-container-${req.page}`);
+            if (!container) return;
+
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.querySelectorAll('.requirement-highlight').forEach(el => el.remove());
+
+            const page = await currentPdf.getPage(req.page);
+            const textContent = await page.getTextContent();
+            const viewport = page.getViewport({ scale: pdfScale });
+
+            const searchStr = req.text.substring(0, 25).toLowerCase();
+            const item = textContent.items.find(i => i.str.toLowerCase().includes(searchStr));
+
+            if (item) {
+                const highlight = document.createElement('div');
+                highlight.className = 'requirement-highlight shadow-lg shadow-indigo-200/50';
+
+                const transform = pdfjsLib.Util.transform(viewport.transform, item.transform);
+                highlight.style.left = (transform[4] - 4) + 'px';
+                highlight.style.top = (transform[5] - (item.height * pdfScale) - 2) + 'px';
+                highlight.style.width = (item.width * pdfScale + 8) + 'px';
+                highlight.style.height = (item.height * pdfScale + 8) + 'px';
+
+                container.querySelector('.highlight-layer').appendChild(highlight);
+            }
+        }
+
+        exportBtn.onclick = () => {
+            if (lastExtractedData.length === 0) return;
+            let csvContent = "\uFEFF";
+            csvContent += "ID;Klassificering;Sida;Kravtext\n";
+            lastExtractedData.forEach(req => {
+                const cleanText = req.text.replace(/;/g, ",").replace(/\n/g, " ");
+                csvContent += `${req.id};${req.classification};${req.page};"${cleanText}"\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Alysa_Analys_${new Date().toLocaleDateString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+    </script>
+</body>
+
+</html>
