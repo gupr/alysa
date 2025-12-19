@@ -157,10 +157,12 @@
 <body class="flex flex-col antialiased selection:bg-blue-500 selection:text-white">
 
     <nav class="h-16 border-b border-slate-800 navbar-bg flex items-center justify-between px-6 z-20 sticky top-0">
-        <div class="flex items-center gap-3">
-            <img src="alysa-logo.png" alt="Logo" class="logo-img">
-            <p class="text-[10px] text-blue-300 font-mono tracking-widest font-semibold uppercase pt-1">Construction Intelligence</p>
-        </div>
+        <a href="index.html" class="flex items-center gap-3 hover:opacity-90 transition">
+            <img src="alysa-logo.png" alt="Alysa – Hem" class="logo-img">
+            <p class="text-[10px] text-blue-300 font-mono tracking-widest font-semibold uppercase pt-1">
+                Construction Intelligence
+            </p>
+        </a>
         <div class="flex gap-4">
              <input type="file" id="fileInput" accept=".pdf,.zip,.docx,.xlsx" class="hidden-input" onchange="handleFile(this.files[0])">
              <button onclick="document.getElementById('fileInput').click()" class="btn-primary shadow-lg shadow-blue-900/40">
