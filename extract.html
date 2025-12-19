@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="sv" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alysa - Construction Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                    colors: { slate: { 850: '#1e293b', 900: '#0f172a', 950: '#020617' } }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* GRUND */
+        body { background-color: #0b1121; color: #e2e8f0; height: 100vh; overflow: hidden; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        
+        #left-panel { background: #151e32; border-right: 1px solid #1e293b; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        #right-panel { background: #0b1121; overflow-y: auto; position: relative; }
+
+        /* LOGO & HEADER - Ljusare bakgrund, ingen filter på loggan */
+        .navbar-bg { background-color: #1e3a5f; } /* Ljusare slate-blå */
+        .logo-img { 
+            height: 36px; /* Något större */
+            width: auto; 
+            object-fit: contain; 
+            /* filter: brightness(0) invert(1);  <-- BORTTAGET för att visa loggans färg */
+        }
+        .hidden-input { display: none !important; }
+
+        /* NAVIGATOR */
+        #file-navigator { background: #1e3a5f; border-bottom: 1px solid #2d4a77; display: flex; overflow-x: auto; height: 44px; align-items: center; }
+        .file-tab { padding: 0 16px; height: 100%; display: flex; align-items: center; color: #94a3b8; font-size: 11px; font-weight: 600; cursor: pointer; border-right: 1px solid #2d4a77; white-space: nowrap; }
+        .file-tab:hover { background: #2d4a77; color: #ffffff; }
+
+        #viewer-scroll-area { flex: 1; overflow-y: auto; padding: 40px; outline: none; scroll-behavior: smooth; }
+        
+        #content-container { position: relative; }
+
+        /* DOCX CONTAINER */
+        .doc-view-container { 
+            background: #ffffff; 
+            color: #1e293b; 
+            min-height: 100vh; 
+            padding: 60px; 
+            max-width: 850px; 
+            margin: 0 auto; 
+            font-family: 'Georgia', serif; 
+            font-size: 15px; 
+            line-height: 1.6; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5); 
+            border-radius: 2px;
+            white-space: pre-wrap; 
+            position: relative; 
+        }
+
+        /* --- PDF CSS --- */
+        .pdf-page { 
+            margin: 0 auto 20px auto; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5); 
+            position: relative; 
+            overflow: hidden; 
+        }
+
+        .pdf-page canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .textLayer { 
+            position: absolute; 
+            inset: 0; 
+            opacity: 1; 
+            line-height: 1.0; 
+            transform-origin: 0 0; 
+            z-index: 2;
+        }
+
+        .textLayer span {
+            color: transparent;
+            position: absolute;
+            white-space: pre; 
+            cursor: text;
+            transform-origin: 0% 0%;
+        }
+        
+        .textLayer ::selection, .doc-view-container ::selection {
+            background: rgba(59, 130, 246, 0.3);
+            color: inherit;
+        }
+
+        /* --- MARKERINGAR (OVERLAY) --- */
+        .highlight-overlay {
+            position: absolute;
+            background-color: rgba(254, 240, 138, 0.5); /* Gul */
+            border-bottom: 3px solid #ef4444; /* Röd */
+            pointer-events: none;
+            z-index: 10;
+            mix-blend-mode: multiply;
+            animation: pop-in 0.3s ease-out;
+        }
+
+        @keyframes pop-in {
+            0% { transform: scaleY(0); opacity: 0; }
+            100% { transform: scaleY(1); opacity: 1; }
+        }
+
+        /* ZIP HEADER NAVIGATION I TEXTEN */
+        .file-separator { 
+            margin-top: 80px; 
+            margin-bottom: 20px; 
+            padding-bottom: 10px; 
+            border-bottom: 2px solid #e2e8f0; 
+            color: #2563eb; 
+            font-family: 'Inter', sans-serif; 
+            font-weight: 700; 
+            font-size: 14px; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            scroll-margin-top: 60px; 
+        }
+
+        /* CARDS */
+        .req-card { background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.05); border-left-width: 4px; padding: 16px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; margin-bottom: 12px; }
+        .req-card:hover { transform: translateY(-2px); background: rgba(30, 41, 59, 0.7); }
+        .card-skall { border-left-color: #ef4444; }
+        .card-bor { border-left-color: #f59e0b; }
+        .card-risk { border-left-color: #ef4444; background: linear-gradient(to right, rgba(239,68,68,0.05), transparent); }
+        .badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; margin-bottom: 8px; }
+        .badge-skall { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.5); }
+        .badge-bor { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.5); }
+
+        .chat-pill-btn { position: fixed; bottom: 30px; right: 30px; z-index: 50; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 9999px; font-weight: 600; font-size: 14px; box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4); display: flex; gap: 10px; cursor: pointer; transition: transform 0.2s; }
+        .chat-pill-btn:hover { transform: translateY(-2px); }
+        .chat-window { position: fixed; bottom: 90px; right: 30px; width: 380px; height: 500px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 50; }
+        .chat-window.open { display: flex; }
+        
+        .btn-primary { background: #3b82f6; color: white; font-weight: 600; border-radius: 6px; transition: all 0.2s; padding: 8px 20px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .btn-primary:hover { background: #2563eb; }
+    </style>
+</head>
+<body class="flex flex-col antialiased selection:bg-blue-500 selection:text-white">
+
+    <nav class="h-16 border-b border-slate-800 navbar-bg flex items-center justify-between px-6 z-20 sticky top-0">
+        <div class="flex items-center gap-3">
+            <img src="alysa-logo.png" alt="Logo" class="logo-img">
+            <p class="text-[10px] text-blue-300 font-mono tracking-widest font-semibold uppercase pt-1">Construction Intelligence</p>
+        </div>
+        <div class="flex gap-4">
+             <input type="file" id="fileInput" accept=".pdf,.zip,.docx,.xlsx" class="hidden-input" onchange="handleFile(this.files[0])">
+             <button onclick="document.getElementById('fileInput').click()" class="btn-primary shadow-lg shadow-blue-900/40">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                Ladda upp Underlag
+             </button>
+        </div>
+    </nav>
+
+    <div class="flex-1 flex overflow-hidden">
+        <div id="left-panel" class="w-7/12">
+            <div id="file-navigator" class="hidden"></div>
+            <div id="viewer-scroll-area" tabindex="0">
+                <div id="placeholder" class="h-full flex flex-col items-center justify-center text-slate-600 opacity-60">
+                    <p class="text-sm font-mono uppercase tracking-widest text-slate-500">Inget underlag laddat</p>
+                </div>
+                <div id="content-container" class="min-h-full pb-32 outline-none"></div>
+            </div>
+        </div>
+
+        <div id="right-panel" class="w-5/12 p-8">
+            <div id="loading" class="hidden flex flex-col items-center justify-center pt-32">
+                <div class="w-12 h-12 border-2 border-slate-700 border-t-blue-500 rounded-full animate-spin mb-6"></div>
+                <p class="text-slate-300 text-sm font-medium tracking-wide">GEMINI ANALYSERAR...</p>
+                <p class="text-slate-500 text-xs mt-2">Läser igenom hela underlaget...</p>
+            </div>
+
+            <div id="results" class="hidden space-y-8 pb-20">
+                <div class="p-6 rounded-lg bg-slate-800/50 border border-slate-700">
+                    <h3 class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-4">Sammanfattning</h3>
+                    <div id="summary-text" class="text-slate-300 text-sm leading-relaxed space-y-3 font-light"></div>
+                </div>
+
+                <div id="risks-area" class="hidden">
+                    <h3 class="text-xs font-bold text-slate-100 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 mt-8">Identifierade Risker</h3>
+                    <div id="risk-list"></div>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold text-slate-100 uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 mt-8">Kravspecifikation</h3>
+                    <div id="req-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div onclick="toggleChat()" class="chat-pill-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+        <span>Ask AI</span>
+    </div>
+    
+    <div id="chat-window" class="chat-window">
+        <div class="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center cursor-pointer" onclick="toggleChat()">
+            <span class="font-bold text-slate-100 text-sm">Alysa Assistent</span>
+            <span class="text-slate-400 text-xs">Stäng</span>
+        </div>
+        <div id="chat-msgs" class="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-900/50"></div>
+        <div class="p-3 bg-slate-800 border-t border-slate-700">
+            <div class="flex items-center bg-slate-900 rounded px-3 py-2 border border-slate-700 focus-within:border-blue-500 transition">
+                <input id="chat-in" class="flex-1 bg-transparent outline-none text-xs text-slate-200" placeholder="Fråga..." onkeypress="if(event.key==='Enter') sendChat()">
+                <button onclick="sendChat()" class="text-blue-500 ml-2">➤</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isTextMode = false;
+
+        async function handleFile(file) {
+            if (!file) return;
+            document.getElementById('placeholder').classList.add('hidden');
+            document.getElementById('content-container').innerHTML = "";
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            
+            const nav = document.getElementById('file-navigator');
+            nav.innerHTML = "";
+            nav.classList.add('hidden');
+
+            if (file.name.endsWith('.pdf')) {
+                isTextMode = false;
+                const ab = await file.arrayBuffer();
+                renderPDF(ab);
+            } else {
+                isTextMode = true; 
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const res = await fetch("http://127.0.0.1:8000/analyze", { method: "POST", body: formData });
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                if (data.extracted_text_view) {
+                    isTextMode = true; 
+                    // Skicka med fillistan om den finns (för ZIP)
+                    renderTextView(data.extracted_text_view, data.file_list);
+                }
+
+                displayResults(data);
+                document.getElementById('chat-window').classList.add('open');
+            } catch (e) {
+                alert("FEL:\n" + e.message);
+                document.getElementById('placeholder').classList.remove('hidden');
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        async function renderPDF(data) {
+            const container = document.getElementById('content-container');
+            const pdf = await pdfjsLib.getDocument(data).promise;
+            for (let i = 1; i <= Math.min(pdf.numPages, 30); i++) {
+                const page = await pdf.getPage(i);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const div = document.createElement('div');
+                div.className = 'pdf-page';
+                div.style.width = `${viewport.width}px`;
+                div.style.height = `${viewport.height}px`;
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width; canvas.height = viewport.height;
+                div.appendChild(canvas);
+                
+                const textLayer = document.createElement('div');
+                textLayer.className = 'textLayer';
+                div.appendChild(textLayer);
+                
+                container.appendChild(div);
+                
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                const tc = await page.getTextContent();
+                pdfjsLib.renderTextLayer({ textContentSource: tc, container: textLayer, viewport, textDivs: [] });
+            }
+        }
+
+        // --- FIXAD TEXT RENDERARE: Städning + Robust Index-baserad Navigering ---
+        function renderTextView(text, files) {
+            const container = document.getElementById('content-container');
+            const nav = document.getElementById('file-navigator');
+            container.innerHTML = ""; // Rensa först
+            nav.innerHTML = ""; // Rensa menyn
+
+            // 1. STÄDA TEXTEN: Kollapsa 3 eller fler radbrytningar till max 2
+            let cleanText = text.replace(/\n{3,}/g, '\n\n'); 
+
+            // 2. DELA UPP TEXTEN BASERAT PÅ SEPARATORN
+            // Detta skapar en array: [ "", "Filnamn1", "Innehåll1", "Filnamn2", "Innehåll2", ... ]
+            const parts = cleanText.split(/={40}\n📄 DOKUMENT: (.*?)\n={40}/g);
+
+            let finalHtml = "";
+            let navHtml = "";
+            let docIndex = 0;
+
+            // Loopa igenom delarna (hoppa över första tomma, ta filnamn och innehåll i par)
+            for (let i = 1; i < parts.length; i += 2) {
+                const filename = parts[i].trim();
+                let content = parts[i+1];
+                
+                // Skapa ett säkert, unikt ID baserat på index
+                const safeId = `doc-idx-${docIndex}`;
+
+                // Bygg HTML för texten med ankare
+                finalHtml += `<div id="${safeId}" class="file-separator"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> ${filename}</div>`;
+                finalHtml += escapeHtml(content); // Escape:a innehållet
+
+                // Bygg HTML för menyknappen med samma ID
+                navHtml += `<div class="file-tab" onclick="document.getElementById('${safeId}').scrollIntoView({behavior:'smooth', block:'start'})">📄 ${filename}</div>`;
+
+                docIndex++;
+            }
+
+            // Sätt in allt i containern
+            container.innerHTML = `<div id="text-doc-body" class="doc-view-container">${finalHtml}</div>`;
+
+            // Visa menyn om det fanns filer
+            if (docIndex > 0) {
+                nav.classList.remove('hidden');
+                nav.innerHTML = navHtml;
+            }
+        }
+
+        function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>"); }
+
+        function displayResults(data) {
+            document.getElementById('results').classList.remove('hidden');
+            let summaryHTML = (data.summary || "Ingen sammanfattning.").replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-200">$1</strong>');
+            document.getElementById('summary-text').innerHTML = summaryHTML;
+
+            const reqList = document.getElementById('req-list');
+            const riskList = document.getElementById('risk-list');
+            reqList.innerHTML = ""; riskList.innerHTML = "";
+
+            const createCard = (item, type) => {
+                const isRisk = type === 'risk';
+                const isSkall = item.classification === 'SKALL';
+                let cardClass = isRisk ? 'card-risk' : (isSkall ? 'card-skall' : 'card-bor');
+                let badgeClass = isRisk ? 'badge-skall' : (isSkall ? 'badge-skall' : 'badge-bor');
+                let label = isRisk ? `RISK (${item.severity})` : (isSkall ? "SKALL" : "BÖR");
+
+                const div = document.createElement('div');
+                div.className = `req-card ${cardClass}`;
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="badge ${badgeClass}">${label}</span>
+                        <span class="text-[10px] text-blue-400 opacity-50 flex items-center gap-1 group-hover:opacity-100 transition">
+                            Hitta <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                        </span>
+                    </div>
+                    <div class="text-xs font-medium text-slate-200 mb-2 leading-relaxed">"${item.text}"</div>
+                    <div class="text-[10px] text-slate-500 italic pt-1">${item.reasoning}</div>
+                `;
+                div.onclick = () => {
+                    if (isTextMode) {
+                        highlightDOCX(item.text);
+                    } else {
+                        highlightPDF(item.text);
+                    }
+                };
+                return div;
+            };
+
+            data.requirements.forEach(r => reqList.appendChild(createCard(r, 'req')));
+            if (data.risks.length > 0) {
+                document.getElementById('risks-area').classList.remove('hidden');
+                data.risks.forEach(r => riskList.appendChild(createCard(r, 'risk')));
+            }
+        }
+
+        // =======================================================
+        // METOD 1: DOCX HIGHLIGHTING (SEGMENTERAD SÖKNING)
+        // =======================================================
+        function highlightDOCX(snippet) {
+            const container = document.getElementById('text-doc-body');
+            if (!container) return;
+            
+            document.querySelectorAll('.highlight-overlay').forEach(el => el.remove());
+
+            document.getElementById('viewer-scroll-area').focus();
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+
+            const cleanSnippet = snippet.replace(/^[\s\u2022\*\-\d\.]+/g, '').trim();
+
+            let found = window.find(cleanSnippet, false, false, true); 
+            
+            if (!found) {
+                found = window.find(cleanSnippet.replace(/[\n\r]+/g, " "), false, false, true);
+            }
+            
+            if (!found && cleanSnippet.length > 30) {
+                const startSnippet = cleanSnippet.substring(0, 25);
+                sel.removeAllRanges(); const range = document.createRange(); range.selectNodeContents(container); range.collapse(true); sel.addRange(range);
+                found = window.find(startSnippet, false, false, true);
+            }
+
+            if (!found && cleanSnippet.length > 50) {
+                const midSnippet = cleanSnippet.substring(20, 50);
+                sel.removeAllRanges(); const range = document.createRange(); range.selectNodeContents(container); range.collapse(true); sel.addRange(range);
+                found = window.find(midSnippet, false, false, true);
+            }
+
+            if (!found && cleanSnippet.length > 30) {
+                const endSnippet = cleanSnippet.substring(cleanSnippet.length - 25);
+                sel.removeAllRanges(); const range = document.createRange(); range.selectNodeContents(container); range.collapse(true); sel.addRange(range);
+                found = window.find(endSnippet, false, false, true);
+            }
+
+            if (found) {
+                const range = window.getSelection().getRangeAt(0);
+                const rects = range.getClientRects();
+                const containerRect = container.getBoundingClientRect();
+                
+                let firstOverlay = null;
+
+                for (const rect of rects) {
+                    const div = document.createElement('div');
+                    div.className = 'highlight-overlay';
+                    div.style.top = `${rect.top - containerRect.top}px`;
+                    div.style.left = `${rect.left - containerRect.left}px`;
+                    div.style.width = `${rect.width}px`;
+                    div.style.height = `${rect.height}px`;
+                    container.appendChild(div);
+                    if (!firstOverlay) firstOverlay = div;
+                }
+                
+                sel.removeAllRanges();
+
+                if (firstOverlay) {
+                    firstOverlay.scrollIntoView({behavior: "smooth", block: "center"});
+                }
+            } else {
+                alert("Hittade inte texten exakt. (Dokumentet kan ha oväntade radbrytningar).");
+            }
+        }
+
+        // =======================================================
+        // METOD 2: PDF HIGHLIGHTING (ORÖRD)
+        // =======================================================
+        function highlightPDF(snippet) {
+            const container = document.getElementById('content-container');
+            if (!container) return;
+            
+            document.querySelectorAll('.highlight-overlay').forEach(el => el.remove());
+
+            const cleanText = (txt) => txt.replace(/[\(\)\[\]\.\,\:\;\-\u2022\*\d]/g, ' ').toLowerCase();
+            const searchWords = cleanText(snippet).split(/\s+/).filter(w => w.length > 2);
+
+            if (searchWords.length === 0) return;
+
+            const pdfStream = [];
+            document.querySelectorAll('.textLayer span').forEach(span => {
+                const words = cleanText(span.textContent).split(/\s+/);
+                words.forEach(w => {
+                    if (w.length > 2) {
+                        pdfStream.push({ word: w, span: span });
+                    }
+                });
+            });
+
+            let bestMatch = { startIndex: -1, score: 0 };
+            
+            for (let i = 0; i < pdfStream.length; i++) {
+                if (pdfStream[i].word.includes(searchWords[0]) || searchWords[0].includes(pdfStream[i].word)) {
+                    let currentScore = 0;
+                    let lookAhead = Math.min(searchWords.length + 10, pdfStream.length - i);
+                    
+                    for (let j = 0; j < lookAhead; j++) {
+                        if (searchWords.includes(pdfStream[i+j].word)) {
+                            currentScore++;
+                        }
+                    }
+
+                    const matchPercentage = currentScore / searchWords.length;
+                    if (matchPercentage > 0.6 && matchPercentage > bestMatch.score) {
+                        bestMatch = { startIndex: i, score: matchPercentage };
+                    }
+                }
+            }
+
+            if (bestMatch.startIndex !== -1) {
+                const spansToHighlight = new Set();
+                
+                let matchedWordsCount = 0;
+                let endIndex = bestMatch.startIndex;
+                let maxLoop = Math.min(pdfStream.length, bestMatch.startIndex + searchWords.length + 20);
+
+                for (let k = bestMatch.startIndex; k < maxLoop; k++) {
+                    const currentPdfWord = pdfStream[k].word;
+                    if (searchWords.includes(currentPdfWord)) {
+                        matchedWordsCount++;
+                        endIndex = k; 
+                    }
+                    if (matchedWordsCount >= searchWords.length) break;
+                }
+
+                for (let k = bestMatch.startIndex; k <= endIndex; k++) {
+                    spansToHighlight.add(pdfStream[k].span);
+                }
+
+                let firstSpan = null;
+                spansToHighlight.forEach(span => {
+                    if (!firstSpan) firstSpan = span;
+                    const rect = span.getBoundingClientRect();
+                    let parentPage = span.closest('.pdf-page');
+                    if (parentPage) {
+                        const pageRect = parentPage.getBoundingClientRect();
+                        const div = document.createElement('div');
+                        div.className = 'highlight-overlay';
+                        div.style.top = `${rect.top - pageRect.top}px`;
+                        div.style.left = `${rect.left - pageRect.left}px`;
+                        div.style.width = `${rect.width}px`;
+                        div.style.height = `${rect.height}px`;
+                        parentPage.appendChild(div);
+                    }
+                });
+
+                if (firstSpan) firstSpan.scrollIntoView({behavior: "smooth", block: "center"});
+            } else {
+                alert("Kunde inte hitta exakt plats (texten kan vara fragmenterad).");
+            }
+        }
+
+        function toggleChat() { document.getElementById('chat-window').classList.toggle('open'); }
+        async function sendChat() {
+            const inp = document.getElementById('chat-in');
+            const msg = inp.value; if(!msg) return;
+            const box = document.getElementById('chat-msgs');
+            box.innerHTML += `<div class="flex items-center gap-3 flex-row-reverse"><div class="bg-blue-600 p-2 rounded-lg text-xs text-white max-w-[85%]">${msg}</div></div>`;
+            inp.value = ""; box.scrollTop = box.scrollHeight;
+            try {
+                const res = await fetch("http://127.0.0.1:8000/chat", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({question:msg}) });
+                const data = await res.json();
+                box.innerHTML += `<div class="flex gap-3"><div class="bg-slate-800 p-2 rounded-lg text-xs text-slate-300 border border-slate-700 max-w-[85%]">${data.answer}</div></div>`;
+            } catch (e) { box.innerHTML += `<div class="text-center text-xs text-red-400">Fel.</div>`; }
+            box.scrollTop = box.scrollHeight;
+        }
+    </script>
+</body>
+</html>
