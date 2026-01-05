@@ -23,3 +23,20 @@ Projektet är i ett stabilt tidigt skede och utgör grunden för kommande AI-bas
 Länk: https://gupr.github.io/alysa
 
 https://github.com/oscoro123/Alysa_mvp
+
+# GIT-GUIDE
+
+Innan du gör nåt, uppdatera allt med nya ändringar (om de finns):
+Skriv `git pull` för att hämta det senaste.
+
+När du gjort ändringar:
+Skriv `git status` för att se vilka filer som du gjort ändringar i och som ska läggas till i repon.
+
+Pusha dina ändringar:
+
+1. Skriv `git add [filnamnet så som det står i git status]`
+2. Skriv `git commit -m "[Kort beskrivning av vad du gjort här]"`
+3. Skriv `git push` för att slutligen pusha din nya kod mot repon.
+
+Sammanfattningsvis:
+pull -> jobba och ändra kod -> add -> commit -> push
