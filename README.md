@@ -22,3 +22,4 @@ Projektet är i ett stabilt tidigt skede och utgör grunden för kommande AI-bas
 Länk: https://gupr.github.io/alysa
 
 https://github.com/oscoro123/Alysa_mvp
+hej
