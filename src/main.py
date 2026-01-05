@@ -36,3 +36,4 @@ async def analyze_pdf(file: UploadFile = File(...)):
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
 
 # Test comment
+#test 2
