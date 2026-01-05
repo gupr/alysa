@@ -27,9 +27,11 @@ https://github.com/oscoro123/Alysa_mvp
 # GIT-GUIDE
 
 Innan du gör nåt, uppdatera allt med nya ändringar (om de finns):
+
 Skriv `git pull` för att hämta det senaste.
 
 När du gjort ändringar:
+
 Skriv `git status` för att se vilka filer som du gjort ändringar i och som ska läggas till i repon.
 
 Pusha dina ändringar:
