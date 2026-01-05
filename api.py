@@ -1,11 +1,11 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-import fitz  # PyMuPDF
+import fitz
 import pandas as pd
 from docx import Document
 
@@ -13,6 +13,8 @@ import zipfile
 import io
 import os
 import re
+import uuid
+from typing import Dict
 
 from src.extractor import RequirementExtractor
 
@@ -35,8 +37,13 @@ app.add_middleware(
 
 extractor = RequirementExtractor()
 
-# Enkel global state för nuvarande dokument
-CURRENT_DOCUMENT_TEXT: str = ""
+
+# --------------------------------------------------
+# In-memory document store
+# --------------------------------------------------
+
+# document_id -> extracted full text
+DOCUMENT_STORE: Dict[str, str] = {}
 
 
 # --------------------------------------------------
@@ -44,6 +51,7 @@ CURRENT_DOCUMENT_TEXT: str = ""
 # --------------------------------------------------
 
 class ChatRequest(BaseModel):
+    document_id: str
     question: str
 
 
@@ -52,10 +60,7 @@ class ChatRequest(BaseModel):
 # --------------------------------------------------
 
 def clean_text_for_display(text: str) -> str:
-    """
-    Normaliserar whitespace så texten blir sökbar och jämn.
-    Radbrytningar behålls.
-    """
+    """Normaliserar whitespace utan att ta bort struktur."""
     if not text:
         return ""
 
@@ -66,10 +71,7 @@ def clean_text_for_display(text: str) -> str:
 
 
 def extract_text_from_file(file_content: bytes, filename: str) -> str:
-    """
-    Extraherar text beroende på filtyp.
-    Returnerar tom sträng vid okänd eller trasig fil.
-    """
+    """Extraherar text baserat på filtyp."""
     filename = filename.lower()
     text = ""
 
@@ -81,12 +83,12 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
 
         elif filename.endswith(".docx"):
             doc = Document(io.BytesIO(file_content))
-            paragraphs = [
+            parts = [
                 clean_text_for_display(p.text)
                 for p in doc.paragraphs
                 if p.text.strip()
             ]
-            text = "\n\n".join(paragraphs)
+            text = "\n\n".join(parts)
 
         elif filename.endswith(".xlsx"):
             df = pd.read_excel(io.BytesIO(file_content))
@@ -102,15 +104,13 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
 
 
 def add_document_header(text: str, filename: str) -> str:
-    """
-    Lägger till en tydlig dokumentseparator.
-    """
-    header = (
+    """Tydlig separator mellan dokument."""
+    return (
         f"\n\n{'=' * 40}\n"
-        f"📄 DOKUMENT: {os.path.basename(filename)}\n"
+        f"DOKUMENT: {os.path.basename(filename)}\n"
         f"{'=' * 40}\n"
+        f"{text}"
     )
-    return header + text
 
 
 # --------------------------------------------------
@@ -119,14 +119,13 @@ def add_document_header(text: str, filename: str) -> str:
 
 @app.post("/analyze")
 async def analyze_file(file: UploadFile = File(...)):
-    global CURRENT_DOCUMENT_TEXT
-
     content = await file.read()
+
     full_text = ""
-    file_list: list[str] = []
+    file_list = []
     is_complex = False
 
-    # ZIP: flera dokument
+    # ZIP = flera dokument
     if file.filename.endswith(".zip"):
         is_complex = True
 
@@ -142,26 +141,29 @@ async def analyze_file(file: UploadFile = File(...)):
                     full_text += add_document_header(extracted, name)
                     file_list.append(os.path.basename(name))
 
-    # Office / text-filer
+    # Office / text
     elif file.filename.endswith((".docx", ".xlsx", ".txt")):
         is_complex = True
         extracted = extract_text_from_file(content, file.filename)
         full_text = add_document_header(extracted, file.filename)
         file_list.append(file.filename)
 
-    # PDF eller annat
+    # PDF eller övrigt
     else:
         full_text = extract_text_from_file(content, file.filename)
         file_list.append(file.filename)
 
-    CURRENT_DOCUMENT_TEXT = full_text
-
+    # Kör analys
     result = extractor.analyze_document(full_text)
-
     if not result:
         return {"error": "Analysen misslyckades."}
 
+    # Skapa dokument-ID
+    document_id = str(uuid.uuid4())
+    DOCUMENT_STORE[document_id] = full_text
+
     response = result.dict()
+    response["document_id"] = document_id
 
     if is_complex:
         response["extracted_text_view"] = full_text
@@ -172,19 +174,18 @@ async def analyze_file(file: UploadFile = File(...)):
 
 @app.post("/chat")
 async def chat_with_doc(req: ChatRequest):
-    """
-    Enkel RAG-liknande chatt mot senaste analyserade dokument.
-    """
-    global CURRENT_DOCUMENT_TEXT
+    document_text = DOCUMENT_STORE.get(req.document_id)
+
+    if not document_text:
+        raise HTTPException(status_code=404, detail="Dokument hittades inte.")
 
     try:
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
         model = genai.GenerativeModel("gemini-flash-latest")
 
         prompt = (
             "Underlag:\n"
-            f"{CURRENT_DOCUMENT_TEXT[:500_000]}\n\n"
+            f"{document_text[:500_000]}\n\n"
             f"Fråga: {req.question}"
         )
 
