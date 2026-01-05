@@ -34,3 +34,5 @@ async def analyze_pdf(file: UploadFile = File(...)):
 
 # Serverar dashboard.html lokalt
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
+
+# Test comment
